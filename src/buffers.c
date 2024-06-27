@@ -28,7 +28,7 @@
 #include "frame.h"
 #include "log.h"
 
-#define AKVCAM_BUFFERS_MIN 4
+#define AKVCAM_BUFFERS_MIN 2
 
 typedef struct {
     struct vb2_v4l2_buffer vb;
@@ -57,26 +57,11 @@ akvcam_signal_define(buffers, streaming_stopped)
 
 enum vb2_io_modes akvcam_buffers_io_modes_from_device_type(enum v4l2_buf_type type,
                                                            AKVCAM_RW_MODE rw_mode);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
 int akvcam_buffers_queue_setup(struct vb2_queue *queue,
                                unsigned int *num_buffers,
                                unsigned int *num_planes,
                                unsigned int sizes[],
                                struct device *alloc_devs[]);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
-int akvcam_buffers_queue_setup(struct vb2_queue *queue,
-                               unsigned int *num_buffers,
-                               unsigned int *num_planes,
-                               unsigned int sizes[],
-                               void *alloc_devs[]);
-#else
-int akvcam_buffers_queue_setup(struct vb2_queue *queue,
-                               const void *parg,
-                               unsigned int *num_buffers,
-                               unsigned int *num_planes,
-                               unsigned int sizes[],
-                               void *alloc_devs[]);
-#endif
 int akvcam_buffers_buffer_prepare(struct vb2_buffer *buffer);
 void akvcam_buffers_buffer_queue(struct vb2_buffer *buffer);
 int akvcam_buffers_start_streaming(struct vb2_queue *queue, unsigned int count);
@@ -104,7 +89,8 @@ akvcam_buffers_t akvcam_buffers_new(AKVCAM_RW_MODE rw_mode,
     self->queue.mem_ops = &vb2_vmalloc_memops;
     self->queue.ops = &akvcam_akvcam_buffers_queue_ops;
     self->queue.timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
-    self->queue.min_buffers_needed = AKVCAM_BUFFERS_MIN;
+
+    akvcam_buffers_set_count(self, AKVCAM_BUFFERS_MIN);
 
     return self;
 }
@@ -142,12 +128,20 @@ void akvcam_buffers_set_format(akvcam_buffers_t self, akvcam_format_ct format)
 
 size_t akvcam_buffers_count(akvcam_buffers_ct self)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION( 6, 8, 0)
     return self->queue.min_buffers_needed;
+#else
+    return self->queue.min_queued_buffers;
+#endif
 }
 
 void akvcam_buffers_set_count(akvcam_buffers_t self, size_t nbuffers)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION( 6, 8, 0)
     self->queue.min_buffers_needed = nbuffers;
+#else
+    self->queue.min_queued_buffers = nbuffers;
+#endif
 }
 
 akvcam_frame_t akvcam_buffers_read_frame(akvcam_buffers_t self)
@@ -169,13 +163,7 @@ akvcam_frame_t akvcam_buffers_read_frame(akvcam_buffers_t self)
 
     buf = list_entry(self->buffers.next, akvcam_buffers_buffer, list);
     list_del(&buf->list);
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
     buf->vb.vb2_buf.timestamp = ktime_get_ns();
-#else
-    v4l2_get_timestamp(&buf->vb.timestamp);
-#endif
-
     buf->vb.field = V4L2_FIELD_NONE;
     buf->vb.sequence = self->sequence++;
     mutex_unlock(&self->frames_mutex);
@@ -213,13 +201,7 @@ int akvcam_buffers_write_frame(akvcam_buffers_t self, akvcam_frame_t frame)
 
     buf = list_entry(self->buffers.next, akvcam_buffers_buffer, list);
     list_del(&buf->list);
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
     buf->vb.vb2_buf.timestamp = ktime_get_ns();
-#else
-    v4l2_get_timestamp(&buf->vb.timestamp);
-#endif
-
     buf->vb.field = V4L2_FIELD_NONE;
     buf->vb.sequence = self->sequence++;
     mutex_unlock(&self->frames_mutex);
@@ -264,34 +246,15 @@ enum vb2_io_modes akvcam_buffers_io_modes_from_device_type(enum v4l2_buf_type ty
     return io_modes;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
 int akvcam_buffers_queue_setup(struct vb2_queue *queue,
                                unsigned int *num_buffers,
                                unsigned int *num_planes,
                                unsigned int sizes[],
                                struct device *alloc_devs[])
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
-int akvcam_buffers_queue_setup(struct vb2_queue *queue,
-                               unsigned int *num_buffers,
-                               unsigned int *num_planes,
-                               unsigned int sizes[],
-                               void *alloc_devs[])
-#else
-int akvcam_buffers_queue_setup(struct vb2_queue *queue,
-                               const void *parg,
-                               unsigned int *num_buffers,
-                               unsigned int *num_planes,
-                               unsigned int sizes[],
-                               void *alloc_devs[])
-#endif
 {
     akvcam_buffers_t self = vb2_get_drv_priv(queue);
     size_t i;
     UNUSED(alloc_devs);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
-    UNUSED(parg);
-#endif
-
     akpr_function();
 
     if (*num_buffers < 1)

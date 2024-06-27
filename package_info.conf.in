@@ -5,11 +5,23 @@ sourcesDir = @CMAKE_SOURCE_DIR@
 targetPlatform = posix
 buildInfoFile = share/build-info.txt
 targetArch = any
-outputFormats = QtIFW
+outputFormats = QtIFW, Makeself
 hideArch = true
+dailyBuild = @DAILY_BUILD@
+
+[Makeself]
+name = akvcam-installer-cli
+appName = akvcam
+label = Install akvcam
+targetDir = /opt/akvcam
+license = COPYING
+installScript = ports/deploy/setup.sh
+installScriptArgs = akvcam @VERSION@
+pkgTargetPlatform = linux
 
 [QtIFW]
 organization = org.webcamoidprj
+name = akvcam-installer-gui
 appName = akvcam
 title = akvcam, fully compliant V4L2 virtual camera driver for Linux.
 description = Install akvcam

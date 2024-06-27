@@ -3,67 +3,58 @@ name: Linux Ubuntu
 on: [push, pull_request]
 
 env:
-  QTIFWVER: 4.1.1
-  SYSTEM_ARCH: amd64
+  QTIFWVER: 4.8.0
 
 jobs:
   build:
+    name: Ubuntu x86_64
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 10
       fail-fast: false
       matrix:
        include:
-         - system_version: xenial
-           repository: v4.4.267
-           kernel_version: 4.4.267-0404267
-           kernel_version_c: 202104160747
-           unsigned_img: 1
-           need_modules: 1
-           use_qemu: 1
+         - dockerimg: amd64/ubuntu:focal
+           repository: v4.19.316
+           kernel_version: 4.19.316-0419316
+           kernel_version_c: 202406161134
            upload: 1
-         - system_version: bionic
-           repository: v4.9.274
-           kernel_version: 4.9.274-0409274
-           kernel_version_c: 202106301447
-           use_qemu: 1
-         - system_version: bionic
-           repository: v4.14.215
-           kernel_version: 4.14.215-0414215
-           kernel_version_c: 202101122110
-           unsigned_img: 1
-           need_modules: 1
-           use_qemu: 1
-         - system_version: focal
-           repository: v4.19.196
-           kernel_version: 4.19.196-0419196
-           kernel_version_c: 202106301451
-           unsigned_img: 1
-           need_modules: 1
-         - system_version: focal
-           repository: v5.4.130
-           kernel_version: 5.4.130-0504130
-           kernel_version_c: 202107071335
-           unsigned_img: 1
-           need_modules: 1
-         - system_version: hirsute
-           repository: v5.10.48
-           kernel_version: 5.10.48-051048
-           kernel_version_c: 202107071338
-           unsigned_img: 1
-           need_modules: 1
-         - system_version: impish
-           repository: v5.12.15
-           kernel_version: 5.12.15-051215
-           kernel_version_c: 202107070935
-           unsigned_img: 1
-           need_modules: 1
-         - system_version: impish
-           repository: v5.13.1
-           kernel_version: 5.13.1-051301
-           kernel_version_c: 202107071335
-           unsigned_img: 1
-           need_modules: 1
+         - dockerimg: amd64/ubuntu:focal
+           repository: v5.4.278
+           kernel_version: 5.4.278-0504278
+           kernel_version_c: 202406161242
+           upload: 0
+         # Do not update
+         - dockerimg: amd64/ubuntu:jammy
+           repository: v5.10.130
+           kernel_version: 5.10.130-0510130
+           kernel_version_c: 202207121545
+           upload: 0
+         - dockerimg: amd64/ubuntu:jammy
+           repository: v5.15.161
+           kernel_version: 5.15.161-0515161
+           kernel_version_c: 202406161242
+           upload: 0
+         - dockerimg: amd64/ubuntu:mantic
+           repository: v6.1.95
+           kernel_version: 6.1.95-060195
+           kernel_version_c: 202406211343
+           upload: 0
+         - dockerimg: amd64/ubuntu:oracular
+           repository: v6.6.35
+           kernel_version: 6.6.35-060635
+           kernel_version_c: 202406210941
+           upload: 0
+         - dockerimg: amd64/ubuntu:noble
+           repository: v6.8.12
+           kernel_version: 6.8.12-060812
+           kernel_version_c: 202405300722
+           upload: 0
+         - dockerimg: amd64/ubuntu:noble
+           repository: v6.9.3
+           kernel_version: 6.9.3-060903
+           kernel_version_c: 202405300957
+           upload: 0
     steps:
     - uses: actions/checkout@v2
     - name: Release build
@@ -73,7 +64,7 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
         registry: gcr.io
-        image: ubuntu:${{ matrix.system_version }}
+        image: ${{ matrix.dockerimg }}
         options: >-
           --privileged
           -v ${{ github.workspace }}:/sources
@@ -81,14 +72,11 @@ jobs:
           -e GITHUB_SERVER_URL=${{ env.GITHUB_SERVER_URL }}
           -e GITHUB_REPOSITORY=${{ env.GITHUB_REPOSITORY }}
           -e GITHUB_RUN_ID=${{ env.GITHUB_RUN_ID }}
-          -e SYSTEM_VERSION=${{ matrix.system_version }}
-          -e SYSTEM_ARCH=${{ env.SYSTEM_ARCH }}
+          -e DOCKERIMG=${{ matrix.dockerimg }}
           -e REPOSITORY=${{ matrix.repository }}
           -e KERNEL_VERSION=${{ matrix.kernel_version }}
           -e KERNEL_VERSION_C=${{ matrix.kernel_version_c }}
-          -e UNSIGNED_IMG=${{ matrix.unsigned_img }}
-          -e NEED_MODULES=${{ matrix.need_modules }}
-          -e USE_QEMU=${{ matrix.use_qemu }}
+          -e ARCHITECTURE=amd64
           -e QTIFWVER=${{ env.QTIFWVER }}
           -e UPLOAD=${{ matrix.upload }}
         run: |
@@ -104,11 +92,6 @@ jobs:
           chmod +x ports/ci/linux/build.sh
           ./ports/ci/linux/build.sh
           echo
-          echo Test module
-          echo
-          chmod +x ports/ci/linux/test.sh
-          ./ports/ci/linux/test.sh
-          echo
           echo Release Deploy
           echo
           chmod +x ports/ci/linux/deploy.sh
@@ -120,7 +103,7 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
         registry: gcr.io
-        image: ubuntu:${{ matrix.system_version }}
+        image: ${{ matrix.dockerimg }}
         options: >-
           --privileged
           -v ${{ github.workspace }}:/sources
@@ -128,14 +111,11 @@ jobs:
           -e GITHUB_SERVER_URL=${{ env.GITHUB_SERVER_URL }}
           -e GITHUB_REPOSITORY=${{ env.GITHUB_REPOSITORY }}
           -e GITHUB_RUN_ID=${{ env.GITHUB_RUN_ID }}
-          -e SYSTEM_VERSION=${{ matrix.system_version }}
-          -e SYSTEM_ARCH=${{ env.SYSTEM_ARCH }}
+          -e DOCKERIMG=${{ matrix.dockerimg }}
           -e REPOSITORY=${{ matrix.repository }}
           -e KERNEL_VERSION=${{ matrix.kernel_version }}
           -e KERNEL_VERSION_C=${{ matrix.kernel_version_c }}
-          -e UNSIGNED_IMG=${{ matrix.unsigned_img }}
-          -e NEED_MODULES=${{ matrix.need_modules }}
-          -e USE_QEMU=${{ matrix.use_qemu }}
+          -e ARCHITECTURE=amd64
           -e QTIFWVER=${{ env.QTIFWVER }}
           -e UPLOAD=${{ matrix.upload }}
           -e DAILY_BUILD=1
@@ -152,30 +132,123 @@ jobs:
           chmod +x ports/ci/linux/build.sh
           ./ports/ci/linux/build.sh
           echo
-          echo Test module
-          echo
-          chmod +x ports/ci/linux/test.sh
-          ./ports/ci/linux/test.sh
-          echo
           echo Daily Deploy
           echo
           chmod +x ports/ci/linux/deploy.sh
           ./ports/ci/linux/deploy.sh
     - name: Release Upload
-      uses: softprops/action-gh-release@v0.1.6
+      uses: softprops/action-gh-release@v1
       if: ${{ startsWith(github.ref, 'refs/tags/') && matrix.upload }}
       with:
-        files: packages-v4.4/*
+        files: packages-v4.19/*
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Daily Build Upload
-      uses: softprops/action-gh-release@v0.1.6
+      uses: softprops/action-gh-release@v1
       if: ${{ !startsWith(github.ref, 'refs/tags/') && matrix.upload }}
       with:
-        body: "${{ github.event.head_commit.message }} (commit: ${{ github.sha }})"
+        body: "${{ github.event.head_commit.message }} (commit: ${{ github.sha }})<hr>**Note**: Ignore the commit information of the tag, the files in the release keep updating with every new build, these packages were built from ${{ github.sha }} commit."
         prerelease: true
-        files: packages-v4.4/*
+        files: packages-v4.19/*
         name: Daily Build
         tag_name: daily-build
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # multiarch:
+  #   name: Ubuntu Multiarch
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     max-parallel: 10
+  #     fail-fast: false
+  #     matrix:
+  #      include:
+  #        - distro: ubuntu_latest
+  #          architecture: aarch64
+  #          repository: v6.8.12
+  #          kernel_version: 6.8.12-060812
+  #          kernel_version_c: 202405300722
+  #          upload: 1
+  #        - distro: ubuntu_latest
+  #          architecture: aarch64
+  #          repository: v6.9.3
+  #          kernel_version: 6.9.3-060903
+  #          kernel_version_c: 202405300957
+  #          upload: 0
+  #   steps:
+  #   - uses: actions/checkout@v2
+  #   - name: Release build
+  #     uses: uraimo/run-on-arch-action@v2
+  #     if: ${{ startsWith(github.ref, 'refs/tags/') }}
+  #     with:
+  #       arch: ${{ matrix.architecture }}
+  #       distro: ${{ matrix.distro }}
+  #       githubToken: ${{ github.token }}
+  #       dockerRunArgs: |
+  #         --privileged
+  #         -v "${{ github.workspace }}:/sources"
+  #       env: |
+  #         GITHUB_REF: "${{ env.GITHUB_REF }}"
+  #         GITHUB_SERVER_URL: "${{ env.GITHUB_SERVER_URL }}"
+  #         GITHUB_REPOSITORY: "${{ env.GITHUB_REPOSITORY }}"
+  #         GITHUB_RUN_ID: "${{ env.GITHUB_RUN_ID }}"
+  #         REPOSITORY: ${{ matrix.repository }}
+  #         ARCHITECTURE: ${{ matrix.architecture }}
+  #         KERNEL_VERSION: ${{ matrix.kernel_version }}
+  #         KERNEL_VERSION_C: ${{ matrix.kernel_version_c }}
+  #         QTIFWVER: ${{ env.QTIFWVER }}
+  #         UPLOAD: ${{ matrix.upload }}
+  #       run: |
+  #         cd /sources
+  #         echo
+  #         echo Install dependencies
+  #         echo
+  #         chmod +x ports/ci/linux/install_deps.sh
+  #         ./ports/ci/linux/install_deps.sh
+  #         echo
+  #         echo Daily Build
+  #         echo
+  #         chmod +x ports/ci/linux/build.sh
+  #         ./ports/ci/linux/build.sh
+  #         echo
+  #         echo Daily Deploy
+  #         echo
+  #         chmod +x ports/ci/linux/deploy.sh
+  #         ./ports/ci/linux/deploy.sh
+  #   - name: Daily build
+  #     uses: uraimo/run-on-arch-action@v2
+  #     if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  #     with:
+  #       arch: ${{ matrix.architecture }}
+  #       distro: ${{ matrix.distro }}
+  #       githubToken: ${{ github.token }}
+  #       dockerRunArgs: |
+  #         --privileged
+  #         -v "${{ github.workspace }}:/sources"
+  #       env: |
+  #         GITHUB_REF: "${{ env.GITHUB_REF }}"
+  #         GITHUB_SERVER_URL: "${{ env.GITHUB_SERVER_URL }}"
+  #         GITHUB_REPOSITORY: "${{ env.GITHUB_REPOSITORY }}"
+  #         GITHUB_RUN_ID: "${{ env.GITHUB_RUN_ID }}"
+  #         REPOSITORY: ${{ matrix.repository }}
+  #         ARCHITECTURE: ${{ matrix.architecture }}
+  #         KERNEL_VERSION: ${{ matrix.kernel_version }}
+  #         KERNEL_VERSION_C: ${{ matrix.kernel_version_c }}
+  #         QTIFWVER: ${{ env.QTIFWVER }}
+  #         DAILY_BUILD: 1
+  #       run: |
+  #         cd /sources
+  #         echo
+  #         echo Install dependencies
+  #         echo
+  #         chmod +x ports/ci/linux/install_deps.sh
+  #         ./ports/ci/linux/install_deps.sh
+  #         echo
+  #         echo Daily Build
+  #         echo
+  #         chmod +x ports/ci/linux/build.sh
+  #         ./ports/ci/linux/build.sh
+  #         echo
+  #         echo Daily Deploy
+  #         echo
+  #         chmod +x ports/ci/linux/deploy.sh
+  #         ./ports/ci/linux/deploy.sh

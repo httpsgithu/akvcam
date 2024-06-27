@@ -51,6 +51,14 @@ apt-get -qq -y install \
     libgl1 \
     libx11-xcb1 \
     libxcb-glx0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render-util0 \
+    libxcb-shape0 \
+    libxcb-xfixes0 \
+    libxcb-xinerama0 \
     libxext6 \
     libxkbcommon-x11-0 \
     libxrender1 \
@@ -58,24 +66,56 @@ apt-get -qq -y install \
 
 mkdir -p .local/bin
 
-# Install Qt Installer Framework
+if [ -z "${ARCHITECTURE}" ]; then
+    architecture="${DOCKERIMG%%/*}"
+else
+    case "${ARCHITECTURE}" in
+        aarch64)
+            architecture=arm64v8
+            ;;
+        armv7)
+            architecture=arm32v7
+            ;;
+        *)
+            architecture=${ARCHITECTURE}
+            ;;
+    esac
+fi
 
-qtIFW=QtInstallerFramework-linux-x64-${QTIFWVER}.run
-${DOWNLOAD_CMD} "http://download.qt.io/official_releases/qt-installer-framework/${QTIFWVER}/${qtIFW}" || true
+if [[ ( "${architecture}" = amd64 || "${architecture}" = arm64v8 ) && ! -z "${QTIFWVER}" ]]; then
+    # Install Qt Installer Framework
 
-if [ -e "${qtIFW}" ]; then
-    chmod +x "${qtIFW}"
-    QT_QPA_PLATFORM=minimal \
-    ./"${qtIFW}" \
-        --verbose \
-        --root ~/QtIFW \
-        --accept-licenses \
-        --accept-messages \
-        --confirm-command \
-        install
-    cd .local
-    cp -rvf ~/QtIFW/* .
-    cd ..
+    case "${architecture}" in
+        arm64v8)
+            qtArch=arm64
+            ;;
+        *)
+            qtArch=x64
+            ;;
+    esac
+
+    qtIFW=QtInstallerFramework-linux-${qtArch}-${QTIFWVER}.run
+    ${DOWNLOAD_CMD} "http://download.qt.io/official_releases/qt-installer-framework/${QTIFWVER}/${qtIFW}" || true
+
+    if [ -e "${qtIFW}" ]; then
+        if [ "${architecture}" = arm64v8 ]; then
+            ln -svf libtiff.so.6 /usr/lib/aarch64-linux-gnu/libtiff.so.5
+            ln -svf libwebp.so.7 /usr/lib/aarch64-linux-gnu/libwebp.so.6
+        fi
+
+        chmod +x "${qtIFW}"
+        QT_QPA_PLATFORM=minimal \
+        ./"${qtIFW}" \
+            --verbose \
+            --root ~/QtIFW \
+            --accept-licenses \
+            --accept-messages \
+            --confirm-command \
+            install
+        cd .local
+        cp -rvf ~/QtIFW/* .
+        cd ..
+    fi
 fi
 
 # Install dev tools
@@ -86,42 +126,30 @@ apt-get -qq -y install \
     kmod \
     libelf-dev \
     make \
+    makeself \
     python3 \
     sparse \
     wget \
-    xvfb
+    xvfb \
+    xz-utils
 
-if [ ! -z "${USE_QEMU}" ]; then
-    apt-get -qq -y install \
-        debootstrap \
-        ffmpeg \
-        initramfs-tools \
-        qemu-system-x86 \
-        qemu-utils \
-        ubuntu-wallpapers
-fi
+case "${architecture}" in
+    arm64v8)
+        systemArch=arm64
+        ;;
+    arm32v7)
+        systemArch=armhf
+        ;;
+    *)
+        systemArch=amd64
+        ;;
+esac
 
-url=http://kernel.ubuntu.com/~kernel-ppa/mainline/${REPOSITORY}
-headers=linux-headers-${KERNEL_VERSION}_${KERNEL_VERSION}.${KERNEL_VERSION_C}_all.deb
-headers_generic=linux-headers-${KERNEL_VERSION}-generic_${KERNEL_VERSION}.${KERNEL_VERSION_C}_${SYSTEM_ARCH}.deb
+url=https://kernel.ubuntu.com/mainline/${REPOSITORY}
+headers=amd64/linux-headers-${KERNEL_VERSION}_${KERNEL_VERSION}.${KERNEL_VERSION_C}_all.deb
+headers_generic=${systemArch}/linux-headers-${KERNEL_VERSION}-generic_${KERNEL_VERSION}.${KERNEL_VERSION_C}_${systemArch}.deb
 
-if [ ! -z "${USE_QEMU}" ]; then
-    if [ -z "${UNSIGNED_IMG}" ]; then
-        image=linux-image-${KERNEL_VERSION}-generic_${KERNEL_VERSION}.${KERNEL_VERSION_C}_${SYSTEM_ARCH}.deb
-    else
-        image=linux-image-unsigned-${KERNEL_VERSION}-generic_${KERNEL_VERSION}.${KERNEL_VERSION_C}_${SYSTEM_ARCH}.deb
-    fi
-
-    if [ ! -z "${NEED_MODULES}" ]; then
-        modules=linux-modules-${KERNEL_VERSION}-generic_${KERNEL_VERSION}.${KERNEL_VERSION_C}_${SYSTEM_ARCH}.deb
-    fi
-fi
-
-for package in ${modules} ${image} ${headers} ${headers_generic}; do
-    ${DOWNLOAD_CMD} "${url}/${SYSTEM_ARCH}/${package}"
-    dpkg -i "${package}"
+for package in ${headers} ${headers_generic}; do
+    ${DOWNLOAD_CMD} "${url}/${package}"
+    dpkg -i "${package#*/}"
 done
-
-if [ ! -z "${USE_QEMU}" ]; then
-    update-initramfs -c -k "${KERNEL_VERSION}-generic"
-fi
